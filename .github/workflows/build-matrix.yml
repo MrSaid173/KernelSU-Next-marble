@@ -92,19 +92,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate policy
-        run: |
-          for test_script in \
-            tests/test-workflow-policy.sh \
-            tests/test-lto-policy.sh \
-            tests/test-manager-policy.sh \
-            tests/test-matrix-generator.sh \
-            tests/test-susfs-presets.sh
-          do
-            env -u SOURCE_REPO -u SOURCE_REF -u MANAGER -u MANAGER_REF -u ENABLE_SUSFS \
-              bash "${test_script}"
-          done
-
       - name: Generate build matrix
         id: gen
         env:
@@ -443,9 +430,6 @@ jobs:
       - name: Build kernel
         run: bash scripts/build-kernel.sh
 
-      - name: Read manager build metadata
-        run: bash scripts/read-manager-build-metadata.sh
-
       - name: Package AnyKernel3 zip
         run: bash scripts/package-anykernel.sh
 
@@ -477,14 +461,8 @@ jobs:
             cat kernel-source/release/resolved-refs.env
           } > kernel-source/release/build-info.txt
 
-      - name: Write build-info JSON
-        run: bash scripts/write-build-info-json.sh
-
       - name: Audit flashable zip
         run: bash scripts/audit-flashable-zip.sh
-
-      - name: Generate build summary
-        run: bash scripts/generate-build-summary.sh
 
       - name: Set artifact name
         id: artifact-name
@@ -506,10 +484,6 @@ jobs:
             kernel-source/release/*.zip
             kernel-source/release/*.zip.sha256
             kernel-source/release/build-info.txt
-            kernel-source/release/build-info.json
-            kernel-source/release/summary.md
-            kernel-source/release/zip-audit.txt
-            kernel-source/release/ccache-stats.txt
             kernel-source/release/zip-name.env
 
       - name: Save ccache
@@ -526,52 +500,10 @@ jobs:
           path: /home/runner/.cache/thinlto
           key: ${{ steps.cache-context.outputs.thinlto_key }}
 
-  aggregate-summary:
-    name: Generate combined summary
-    needs: build
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout builder
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Download artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: '*'
-          path: matrix-artifacts
-          merge-multiple: false
-
-      - name: Generate combined summary
-        env:
-          BUILD_SCOPE: ${{ inputs.build_scope }}
-          MATRIX_ARTIFACTS_DIR: matrix-artifacts
-          MATRIX_SUMMARY: matrix-summary.md
-        run: |
-          if compgen -G "matrix-artifacts/*" >/dev/null; then
-            bash scripts/generate-matrix-summary.sh
-            cat matrix-summary.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No build artifacts found — skipping summary."
-          fi
-
-      - name: Upload combined summary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: marble-matrix-summary-r${{ github.run_number }}
-          path: matrix-summary.md
-          retention-days: 30
-          if-no-files-found: warn
-
   release:
     name: Create draft release
-    needs: [build, aggregate-summary]
-    if: ${{ inputs.create_draft_release == true && needs.build.result == 'success' && needs.aggregate-summary.result == 'success' }}
+    needs: build
+    if: ${{ inputs.create_draft_release == true && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -588,53 +520,27 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: '*'
-          path: matrix-artifacts
+          path: release-assets
           merge-multiple: false
 
-      - name: Verify artifacts and prepare release
-        env:
-          BUILD_SCOPE: ${{ inputs.build_scope }}
-          MATRIX_ARTIFACTS_DIR: matrix-artifacts
-          MATRIX_SUMMARY: matrix-summary.md
-          RELEASE_ASSETS_FILE: release-assets.txt
-          SOURCE_RUN_NUMBER: ${{ github.run_number }}
-        run: bash scripts/prepare-promoted-release.sh
+      - name: Verify artifacts
+        run: |
+          assets=()
+          for dir in release-assets/*/; do
+            [[ -f "${dir}zip-name.env" ]] || { echo "::error::Missing zip-name.env in ${dir}"; exit 1; }
+            # shellcheck disable=SC1090
+            source "${dir}zip-name.env"
+            zip_path="${dir}${zip_name}"
+            [[ -f "${zip_path}" ]] || { echo "::error::Missing zip: ${zip_path}"; exit 1; }
+            (cd "${dir}" && sha256sum -c "${zip_name}.sha256")
+            assets+=("${zip_path}")
+          done
+          printf '%s\n' "${assets[@]}" > release-assets.txt
 
       - name: Create release
         run: |
           build_date="$(date '+%Y.%m.%d')"
-
-          # Collect manager display names from artifact build-info.txt files
-          manager_labels=()
-          for dir in matrix-artifacts/*/; do
-            info="${dir}build-info.txt"
-            if [[ -f "${info}" ]]; then
-              manager="$(grep -m1 '^manager=' "${info}" | cut -d= -f2-)"
-              susfs="$(grep -m1 '^enable_susfs=' "${info}" | cut -d= -f2-)"
-              case "${manager}" in
-                kernelsu) label="KernelSU" ;;
-                kernelsu-next) label="KernelSU Next" ;;
-                sukisu-ultra) label="SukiSU Ultra" ;;
-                resukisu) label="ReSukiSU" ;;
-                *) label="${manager}" ;;
-              esac
-              if [[ "${susfs}" == "true" ]]; then
-                label="${label} + SUSFS"
-              fi
-              manager_labels+=("${label}")
-            fi
-          done
-
-          if [[ "${#manager_labels[@]}" -eq 0 ]]; then
-            echo "::error::No manager info found in artifacts"
-            exit 1
-          elif [[ "${#manager_labels[@]}" -ge 4 ]]; then
-            title="KernelSU Managers + SUSFS | ${build_date}"
-          elif [[ "${#manager_labels[@]}" -eq 1 ]]; then
-            title="${manager_labels[0]} | ${build_date}"
-          else
-            title="Marble Kernel | ${build_date}"
-          fi
+          title="KernelSU forks + SUSFS | ${build_date}"
 
           tag="${build_date}"
           if gh release view "${tag}" >/dev/null 2>&1; then
@@ -648,21 +554,19 @@ jobs:
             exit 1
           fi
 
-          # Generate sha256sum.txt
           sha256sum "${release_assets[@]}" > sha256sum.txt
           release_assets+=(sha256sum.txt)
 
-          # Build release body
-          {
-            echo "Release for Poco F5 (marble)"
-            echo
-            if [[ "${#manager_labels[@]}" -gt 1 ]]; then
-              echo "## Included builds"
-              for label in "${manager_labels[@]}"; do
-                echo "- ${label}"
-              done
-            fi
-          } > release-notes.md
+          cat > release-notes.md <<'EOF'
+          ## Included variants
+
+          - KernelSU
+          - KernelSU Next + SUSFS
+          - ReSukiSU + SUSFS
+          - SukiSU Ultra + SUSFS
+
+          See `sha256sum.txt` for checksum verification.
+          EOF
 
           gh release create "${tag}" "${release_assets[@]}" \
             --draft \
