@@ -26,7 +26,7 @@ on:
       kernel_source:
         description: "Kernel source preset"
         type: choice
-        default: aosp-pablo
+        default: MrSaid173
         options:
           - aosp-pablo
           - aospa-pablo
