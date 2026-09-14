@@ -53,12 +53,14 @@ if [[ -z "${manager_commit}" ]]; then
 fi
 
 all_tags="$(git ls-remote --tags "https://github.com/${manager_repo}.git" 2>/dev/null || true)"
-manager_tag="$(echo "${all_tags}" | awk -v sha="${manager_commit}" \
-  '$1==sha && /\^\{\}$/ { sub(/.*refs\/tags\//, "", $2); sub(/\^\{\}/, "", $2); print; exit }')"
-if [[ -z "${manager_tag}" ]]; then
-  manager_tag="$(echo "${all_tags}" | awk -v sha="${manager_commit}" \
-    '$1==sha { sub(/.*refs\/tags\//, "", $2); print; exit }')"
-fi
+manager_tag="$(echo "${all_tags}" | awk -v sha="${manager_commit}" '
+  $1 == sha {
+    tag = $2
+    sub(/^refs\/tags\//, "", tag)
+    sub(/\^\{\}$/, "", tag)
+    print tag
+    exit
+  }')"
 
 if [[ "${ENABLE_SUSFS}" == "true" ]]; then
   susfs_commit="${SUSFS_COMMIT}"
