@@ -13,7 +13,7 @@
     "setup_path": "kernel/setup.sh",
     "susfs": {
       "repo": "pershoot/KernelSU-Next",
-      "ref": "dev-susfs"
+      "ref": "fdbdbcb9b975634d7ac7d90d05665e6756c59399"
     }
   },
   "sukisu-ultra": {
