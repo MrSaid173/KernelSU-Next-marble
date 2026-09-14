@@ -550,12 +550,7 @@ jobs:
         run: |
           build_date="$(date '+%Y.%m.%d')"
           title="KernelSU forks + SUSFS | ${build_date}"
-
           tag="${build_date}"
-          if gh release view "${tag}" >/dev/null 2>&1; then
-            echo "::error::Release ${tag} already exists"
-            exit 1
-          fi
 
           mapfile -t release_assets < release-assets.txt
           if [[ "${#release_assets[@]}" -eq 0 ]]; then
@@ -564,7 +559,6 @@ jobs:
           fi
 
           sha256sum "${release_assets[@]}" > sha256sum.txt
-          release_assets+=(sha256sum.txt)
 
           cat > release-notes.md <<'EOF'
           ## Included variants
@@ -577,8 +571,18 @@ jobs:
           See `sha256sum.txt` for checksum verification.
           EOF
 
-          gh release create "${tag}" "${release_assets[@]}" \
-            --draft \
-            --target "${GITHUB_SHA}" \
-            --title "${title}" \
-            --notes-file release-notes.md
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists — appending assets to it"
+            # Добираем старые контрольные суммы, убирая дубликаты по имени файла
+            if gh release download "${tag}" --pattern 'sha256sum.txt' --dir .oldrel 2>/dev/null; then
+              grep -vFf <(awk '{print $2}' sha256sum.txt) .oldrel/sha256sum.txt >> sha256sum.txt || true
+            fi
+            gh release upload "${tag}" "${release_assets[@]}" sha256sum.txt --clobber
+          else
+            gh release create "${tag}" "${release_assets[@]}" \
+              --draft \
+              --target "${GITHUB_SHA}" \
+              --title "${title}" \
+              --notes-file release-notes.md
+          fi
+        shell: bash
