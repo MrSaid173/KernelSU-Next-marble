@@ -54,7 +54,15 @@ if [[ "${SUSFS_KERNEL_BRANCH}" == "gki-android12-5.10" && -f fs/statfs.c ]]; the
     decl_line="$(grep -n "extern.*${fn}" fs/statfs.c | head -n1 | cut -d: -f1)" || true
     if [[ -z "${decl_line}" || "${decl_line}" -gt "${call_line}" ]]; then
       echo "susfs-statfs-workaround: forward-declaring ${fn}() before its use in fs/statfs.c (upstream ordering bug, susfs_commit=${susfs_commit})"
-      sed -i "${call_line}i\\
+      # Insert at file scope (right after the last #include), not next to the
+      # call site: inserting inside the function body trips
+      # -Werror,-Wdeclaration-after-statement whenever the call isn't the
+      # very first line of its block (kernel code disallows declarations
+      # after statements within a block; file-scope declarations are exempt).
+      last_include_line="$(grep -n '^#include' fs/statfs.c | tail -n1 | cut -d: -f1)" || true
+      insert_line="${last_include_line:-0}"
+      insert_line=$((insert_line + 1))
+      sed -i "${insert_line}i\\
 extern int ${fn}(struct inode *inode, struct kstatfs *buf, bool *is_fuse);" fs/statfs.c
     else
       echo "susfs-statfs-workaround: upstream already declares ${fn}() before use, skipping"
@@ -86,4 +94,3 @@ echo "Using manager-side SUSFS support from ${manager_repo}@${manager_ref}"
 
 popd >/dev/null
 echo "SUSFS applied from ${susfs_commit}"
-
