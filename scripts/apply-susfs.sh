@@ -41,6 +41,29 @@ fi
 rsync -a "${susfs_dir}/kernel_patches/fs/" fs/
 rsync -a "${susfs_dir}/kernel_patches/include/" include/
 
+# --- Workaround: as of susfs4ksu commit 769e31f, the gki-android12-5.10
+# kernel patch calls susfs_sus_kstat_spoof_vfs_statfs() in fs/statfs.c
+# before declaring it, which fails under -Werror,-Wimplicit-function-declaration.
+# Upstream tracking: https://github.com/xingguangcuican6666/ABK/issues/267
+# Self-disabling: only acts if upstream hasn't already fixed the ordering,
+# so this becomes a no-op automatically once simonpunk ships a real fix.
+if [[ "${SUSFS_KERNEL_BRANCH}" == "gki-android12-5.10" && -f fs/statfs.c ]]; then
+  fn="susfs_sus_kstat_spoof_vfs_statfs"
+  call_line="$(grep -n "${fn}(" fs/statfs.c | grep -v extern | head -n1 | cut -d: -f1)" || true
+  if [[ -n "${call_line}" ]]; then
+    decl_line="$(grep -n "extern.*${fn}" fs/statfs.c | head -n1 | cut -d: -f1)" || true
+    if [[ -z "${decl_line}" || "${decl_line}" -gt "${call_line}" ]]; then
+      echo "susfs-statfs-workaround: forward-declaring ${fn}() before its use in fs/statfs.c (upstream ordering bug, susfs_commit=${susfs_commit})"
+      sed -i "${call_line}i\\
+extern int ${fn}(struct inode *inode, struct kstatfs *buf, bool *is_fuse);" fs/statfs.c
+    else
+      echo "susfs-statfs-workaround: upstream already declares ${fn}() before use, skipping"
+    fi
+  else
+    echo "susfs-statfs-workaround: ${fn}() not referenced in fs/statfs.c, skipping"
+  fi
+fi
+
 manager_kconfig=""
 for candidate in KernelSU/kernel/Kconfig KernelSU-Next/kernel/Kconfig drivers/kernelsu/Kconfig; do
   if [[ -f "${candidate}" ]]; then
@@ -63,3 +86,4 @@ echo "Using manager-side SUSFS support from ${manager_repo}@${manager_ref}"
 
 popd >/dev/null
 echo "SUSFS applied from ${susfs_commit}"
+
