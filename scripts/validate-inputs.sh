@@ -48,6 +48,13 @@ case "${ENABLE_SUSFS}" in
     *) echo "::error::ENABLE_SUSFS must be true or false, got ${ENABLE_SUSFS}"; exit 1 ;;
 esac
 
+ENABLE_NOMOUNT="${ENABLE_NOMOUNT:-false}"
+
+case "${ENABLE_NOMOUNT}" in
+    true|false) ;;
+    *) echo "::error::ENABLE_NOMOUNT must be true or false, got ${ENABLE_NOMOUNT}"; exit 1 ;;
+esac
+
 case "${BUILD_SCOPE}" in
     image-only|full) ;;
     *) echo "::error::BUILD_SCOPE must be image-only or full, got ${BUILD_SCOPE}"; exit 1 ;;
