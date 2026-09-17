@@ -89,6 +89,22 @@ if [[ "${ENABLE_SUSFS}" == "true" ]]; then
   susfs_url="https://gitlab.com/simonpunk/susfs4ksu/-/commit/${susfs_commit}"
 fi
 
+ENABLE_NOMOUNT="${ENABLE_NOMOUNT:-false}"
+nomount_commit=""
+
+if [[ "${ENABLE_NOMOUNT}" == "true" ]]; then
+  nomount_commit="$(git ls-remote "https://github.com/${NOMOUNT_REPO}.git" \
+    "refs/heads/${NOMOUNT_REF}" "refs/tags/${NOMOUNT_REF}^{}" "refs/tags/${NOMOUNT_REF}" |
+    awk 'NR == 1 { print $1 }')"
+  if [[ -z "${nomount_commit}" && "${NOMOUNT_REF}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    nomount_commit="${NOMOUNT_REF}"
+  fi
+  if [[ -z "${nomount_commit}" ]]; then
+    echo "::error::Could not resolve NoMount ref ${NOMOUNT_REPO}@${NOMOUNT_REF}"
+    exit 1
+  fi
+fi
+
 {
   echo "source_commit=${source_commit}"
   echo "manager=${MANAGER}"
@@ -102,4 +118,8 @@ fi
   echo "susfs_commit=${susfs_commit}"
   echo "susfs_reported_version=${susfs_reported_version}"
   echo "susfs_url=${susfs_url}"
+  echo "enable_nomount=${ENABLE_NOMOUNT}"
+  echo "nomount_repo=${NOMOUNT_REPO:-}"
+  echo "nomount_ref=${NOMOUNT_REF:-}"
+  echo "nomount_commit=${nomount_commit}"
 } | tee release/resolved-refs.env
