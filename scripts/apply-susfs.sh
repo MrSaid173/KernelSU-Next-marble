@@ -72,6 +72,26 @@ extern int ${fn}(struct inode *inode, struct kstatfs *buf, bool *is_fuse);" fs/s
   fi
 fi
 
+# --- Workaround: as of susfs4ksu commit e466df6, the gki-android12-5.10
+# fs/susfs.c calls security_sb_statfs() but no longer gets <linux/security.h>
+# pulled in transitively by its other includes, which fails under
+# -Werror,-Wimplicit-function-declaration.
+# Self-disabling: only acts if the header isn't already included, so this
+# becomes a no-op automatically once simonpunk ships a real fix upstream.
+if [[ "${SUSFS_KERNEL_BRANCH}" == "gki-android12-5.10" && -f fs/susfs.c ]]; then
+  fn="security_sb_statfs"
+  if grep -q "${fn}(" fs/susfs.c && ! grep -q '^#include <linux/security\.h>' fs/susfs.c; then
+    echo "susfs-security-include-workaround: adding missing #include <linux/security.h> to fs/susfs.c (susfs_commit=${susfs_commit})"
+    last_include_line="$(grep -n '^#include' fs/susfs.c | tail -n1 | cut -d: -f1)" || true
+    insert_line="${last_include_line:-0}"
+    insert_line=$((insert_line + 1))
+    sed -i "${insert_line}i\\
+#include <linux/security.h>" fs/susfs.c
+  else
+    echo "susfs-security-include-workaround: fs/susfs.c already has the header or doesn't need it, skipping"
+  fi
+fi
+
 manager_kconfig=""
 for candidate in KernelSU/kernel/Kconfig KernelSU-Next/kernel/Kconfig drivers/kernelsu/Kconfig; do
   if [[ -f "${candidate}" ]]; then
