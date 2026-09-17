@@ -128,6 +128,12 @@ if [[ "${ENABLE_SUSFS}" == "true" ]]; then
     scripts/config --file "${OUT_DIR}/.config" -e KSU_SUSFS
 fi
 
+ENABLE_NOMOUNT="${ENABLE_NOMOUNT:-false}"
+
+if [[ "${ENABLE_NOMOUNT}" == "true" ]]; then
+    scripts/config --file "${OUT_DIR}/.config" -e NOMOUNT
+fi
+
 # Apply selectable Clang LTO for all presets (including gki_fragments / Melt).
 # Default thin is free-runner safe with swap + thinlto job caps; full needs more RAM.
 
@@ -169,6 +175,11 @@ fi
 
 if [[ "${ENABLE_SUSFS}" == "true" ]] && ! grep -q '^CONFIG_KSU_SUSFS=y$' "${OUT_DIR}/.config"; then
     echo "::error::CONFIG_KSU_SUSFS is not enabled in the final kernel config"
+    exit 1
+fi
+
+if [[ "${ENABLE_NOMOUNT}" == "true" ]] && ! grep -q '^CONFIG_NOMOUNT=y$' "${OUT_DIR}/.config"; then
+    echo "::error::CONFIG_NOMOUNT is not enabled in the final kernel config"
     exit 1
 fi
 
