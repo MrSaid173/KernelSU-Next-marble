@@ -86,22 +86,18 @@ if [[ -z "${SOURCE_REF}" || ! "${SOURCE_REF}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
     exit 1
 fi
 
-if [[ "${ENABLE_SUSFS}" == "true" ]]; then
-    case "${MANAGER}" in
-        kernelsu)
-            echo "::error::Official tiann/KernelSU does not support SUSFS."
-            exit 1
-            ;;
-        kernelsu-next)
-            [[ -z "${MANAGER_REF}" || ! "${MANAGER_REF}" == "dev-susfs" ]] || { echo "::error::KernelSU-Next + SUSFS requires pershoot dev-susfs ref"; exit 1; }
-            ;;
-        sukisu-ultra)
-            [[ -z "${MANAGER_REF}" || ! "${MANAGER_REF}" == "builtin" ]] || { echo "::error::SukiSU Ultra + SUSFS requires official ref builtin"; exit 1; }
-            ;;
-        resukisu)
-            [[ -z "${MANAGER_REF}" || ! "${MANAGER_REF}" == "main" ]] || { echo "::error::ReSukiSU + SUSFS requires official ref main"; exit 1; }
-            ;;
-    esac
+if [[ "${ENABLE_SUSFS}" == "true" && "${MANAGER}" == "kernelsu" ]]; then
+    echo "::error::Official tiann/KernelSU does not support SUSFS."
+    exit 1
 fi
+
+# Manual version overrides: branch, tag or full commit SHA.
+for var in MANAGER_REF SUSFS_COMMIT_OVERRIDE NOMOUNT_REF_OVERRIDE; do
+    value="${!var:-}"
+    if [[ -n "${value}" && ! "${value}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+        echo "::error::${var} contains invalid characters: ${value}"
+        exit 1
+    fi
+done
 
 echo "Input validation passed"
