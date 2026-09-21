@@ -76,6 +76,8 @@ if [[ "${ENABLE_SUSFS}" == "true" ]]; then
 
   git clone --filter=blob:none --no-checkout "${SUSFS_REPO}" "${tmp_susfs}"
   git -C "${tmp_susfs}" checkout "${susfs_commit}"
+  # Accept a branch/tag too: pin to the exact commit so cache keys and logs stay reproducible.
+  susfs_commit="$(git -C "${tmp_susfs}" rev-parse HEAD)"
   susfs_reported_version="$(
     find "${tmp_susfs}/kernel_patches" -path '*/include/linux/susfs.h' -type f -print0 2>/dev/null |
       xargs -0 -r grep -hoE 'SUSFS_VERSION[[:space:]]+"v[0-9]+\.[0-9]+\.[0-9]+"' 2>/dev/null |
