@@ -26,8 +26,8 @@
     }
   },
   "resukisu": {
-    "display": "ReSukiSU",
-    "repo": "ReSukiSU/ReSukiSU",
+    "display": "BakaSu",
+    "repo": "Baka-SU/BakaSU",
     "ref": "main",
     "setup_path": "kernel/setup.sh",
     "susfs": {
