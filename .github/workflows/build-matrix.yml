@@ -40,11 +40,11 @@ on:
         required: false
         default: ""
       susfs_commit:
-        description: "SUSFS commit/tag/branch (empty = SUSFS_COMMIT in config/marble.env)"
+        description: "SUSFS commit/tag/branch (empty = latest gki-android12-5.10)"
         required: false
         default: ""
       nomount_ref:
-        description: "NoMount ref: branch/tag/commit (empty = NOMOUNT_REF in config/marble.env)"
+        description: "NoMount ref: branch/tag/commit (empty = latest master)"
         required: false
         default: ""
       kernel_source:
