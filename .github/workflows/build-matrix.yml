@@ -228,9 +228,31 @@ jobs:
 
       - name: Setup swap for LTO
         if: ${{ inputs.lto != 'none' }}
-        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
-        with:
-          swap-size-gb: 16
+        run: |
+          # The old pierotofy/set-swap-space action recreated the swap file on /mnt
+          # (~14 GB free), so a 16 GB request failed with "No space left on device".
+          # Put the swap file on / instead, which has far more room after the cleanup
+          # in "Check disk space", and shrink it if / is short on space.
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile
+          avail_gb="$(df --output=avail -BG / | tail -n1 | tr -dc '0-9')"
+          size_gb=16
+          # keep at least 20 GiB free on / for sources and build output
+          if (( avail_gb - size_gb < 20 )); then
+            size_gb=$(( avail_gb - 20 ))
+          fi
+          if (( size_gb < 4 )); then
+            echo "::warning::Not enough free disk (${avail_gb} GiB) for a swap file; continuing without swap"
+          else
+            sudo fallocate -l "${size_gb}G" /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            echo "Swap enabled: ${size_gb} GiB on /"
+          fi
+          swapon --show || true
+          free -h
+          df -h / /mnt || true
 
       - name: Install build dependencies
         run: |
