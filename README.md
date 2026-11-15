@@ -45,7 +45,7 @@ This repository uses GitHub Actions to build flashable kernel zips.
 
 | Option | Description |
 |--------|-------------|
-| **Kernel source** | `aosp-pablo` for AOSP-based ROMs, `aospa-pablo` for AOSPA-based ROMs |
+| **Kernel source** | `aosp-pablo` (branch `17`, kernel 5.10.269) for AOSP-based ROMs, `aospa-pablo` for AOSPA-based ROMs, `MrSaid173` (own fork, branch `16`, kernel 5.10.260) |
 | **Source ref** | Leave empty to use preset default branch, or enter a branch/tag/commit to test |
 | **Toolchain** | Leave as `auto` (uses preset's recommended toolchain) |
 | **Build: ALL managers** | Check to build all 4 managers at once |
