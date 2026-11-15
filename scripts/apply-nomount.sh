@@ -23,13 +23,11 @@ setup_url="https://raw.githubusercontent.com/${NOMOUNT_REPO}/${nomount_commit}/k
 echo "Applying NoMount from ${NOMOUNT_REPO}@${nomount_commit} (ref ${NOMOUNT_REF})"
 curl -fsSL "${setup_url}" -o /tmp/nomount-setup.sh
 
-# NOTE: published usage examples invoke this as `bash setup.sh <ref>`, passing a
-# branch/tag name rather than a commit sha. We pin the *download* to an exact
-# commit for reproducibility, but pass the human ref through as the argument
-# in case the script uses it to fetch companion source files internally.
-# Verify this against kernel/README.md in the nomount repo if the script
-# errors out on the argument.
-bash /tmp/nomount-setup.sh "${NOMOUNT_REF}"
+# Pass the resolved commit (not the branch name) to setup.sh: it only uses the
+# argument for `git checkout <commit-or-tag>` (see kernel/setup.sh in the nomount
+# repo). This keeps the build on exactly the commit logged above even if the
+# branch moves between the resolve step and this step.
+bash /tmp/nomount-setup.sh "${nomount_commit}"
 
 popd >/dev/null
 echo "NoMount applied from ${nomount_commit}"
